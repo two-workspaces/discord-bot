@@ -1,0 +1,4 @@
+template-config.json
+template-meta.json
+__pycache__/
+.venv/
