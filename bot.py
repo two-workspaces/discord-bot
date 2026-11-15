@@ -7,6 +7,7 @@ Add your own slash commands in register().
 """
 import asyncio
 import logging
+import math
 import os
 import signal
 import time
@@ -144,7 +145,9 @@ def register(tree: app_commands.CommandTree) -> None:
 
     @tree.command(description="Check that the bot is alive")
     async def ping(interaction: discord.Interaction) -> None:
-        await interaction.response.send_message(f"Pong! {round(interaction.client.latency * 1000)} ms", ephemeral=True)
+        latency = interaction.client.latency  # not a number until the first heartbeat is answered
+        took = f" {round(latency * 1000)} ms" if math.isfinite(latency) else ""
+        await interaction.response.send_message(f"Pong!{took}", ephemeral=True)
 
     @tree.error
     async def on_command_error(interaction: discord.Interaction, error: app_commands.AppCommandError) -> None:
@@ -174,7 +177,7 @@ class Bot(discord.Client):
         try:
             synced = await self.tree.sync()
             log.info("Registered %d slash commands: %s", len(synced), ", ".join(f"/{c.name}" for c in synced))
-        except discord.HTTPException as e:  # the bot still answers mentions and direct messages
+        except discord.DiscordException as e:  # the bot still answers mentions and direct messages
             log.error("Couldn't register slash commands (%s). They are sent again on the next start.", e)
 
     async def on_ready(self) -> None:
@@ -190,7 +193,7 @@ class Bot(discord.Client):
     async def on_message(self, message: discord.Message) -> None:
         if message.author.bot:
             return
-        if message.guild is not None and self.user not in message.mentions:
+        if message.guild is not None and all(user.id != self.user.id for user in message.mentions):
             return  # in a server, only messages that mention the bot
         text = message.content.replace(f"<@{self.user.id}>", "").replace(f"<@!{self.user.id}>", "").strip()
         try:
